@@ -111,7 +111,7 @@ O **FIWARE** (opcional) pode ser utilizado para armazenar os dados históricos e
   "tempo_reacao": 3800,
   "status": "medio"
 }
-
+```
 ---
 
 ## 🔗 Simulação ESP32 (Wokwi)
