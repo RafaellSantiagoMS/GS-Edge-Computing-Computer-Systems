@@ -122,10 +122,10 @@ O **FIWARE** (opcional) pode ser utilizado para armazenar os dados históricos e
 
 | **Descrição** | **Imagem** |
 |---------------|-----------:|
-| Conexão do **ESP32** com o **Broker MQTT (AWS)** | ![ESP32 conectado ao broker](./images/conexao-esp32-broker.png) |
-| Recebimento dos dados no **Node-RED Dashboard** | ![Dados recebidos Node-RED](./images/node-red-dashboard.png) |
-| Feedback visual no **Display OLED** e **LEDs** | ![Feedback OLED e LEDs](./images/oled-feedback.png) |
-| **Dashboard** mostrando pontuação e tempo de reação | ![Dashboard completo](./images/dashboard-pontuacao-tempo.png) |
+| Conexão do **ESP32** com o **Broker MQTT (AWS)** | ![ESP32 conectado ao broker](./assets/images/Captura%20de%20tela%202025-11-12%20104635.png) |
+| Recebimento dos dados no **Node-RED Dashboard** | ![Dados recebidos Node-RED](./assets/images/Captura%20de%20tela%202025-11-12%20113013.png) |
+| Feedback visual no **Display OLED** e **LEDs** | ![Feedback OLED e LEDs](./assets/images/Captura%20de%20tela%202025-11-12%20113422.png) |
+| **Dashboard** mostrando pontuação e tempo de reação | ![Dashboard completo](./assets/images/Captura%20de%20tela%202025-11-12%20113527.png) |
 
 ---
 
