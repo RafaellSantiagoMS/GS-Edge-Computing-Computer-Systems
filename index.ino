@@ -69,3 +69,46 @@ void reconnectMQTT() {
   }
 }
 
+// Envia dados em formato JSON para o broker MQTT
+void enviarDadosMQTT(int pontos, unsigned long tempoReacao, String status) {
+  String payload = "{";
+  payload += "\"pontuacao\": " + String(pontos) + ",";
+  payload += "\"tempo_reacao\": " + String(tempoReacao) + ",";
+  payload += "\"status\": \"" + status + "\"";
+  payload += "}";
+
+  MQTT.publish(TOPICO_PUBLISH, payload.c_str());
+  Serial.println("Enviado MQTT: " + payload);
+}
+
+// Exibe mensagem simples no display
+void mensagem(String texto) {
+  display.clearDisplay();
+  display.setCursor(0, 10);
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+  display.print(texto);
+  display.display();
+}
+
+// Acende um LED específico (vermelho, verde ou azul)
+void acenderLED(int cor) {
+  digitalWrite(LED_RED, cor == LED_RED);
+  digitalWrite(LED_GREEN, cor == LED_GREEN);
+  digitalWrite(LED_BLUE, cor == LED_BLUE);
+}
+
+// Mostra mensagem de incentivo conforme desempenho
+void mostrarConhecimento(int nivel) {
+  display.clearDisplay();
+  display.setCursor(0, 10);
+  if (nivel == 1) {
+    display.print("Curioso! Parte 1:\nAprender IA\ncomeca na base.");
+  } else if (nivel == 2) {
+    display.print("Bom! Parte 2:\nA pratica leva\nao dominio.");
+  } else {
+    display.print("Excelente!\nIA transforma\nideias em solucoes!");
+  }
+  display.display();
+}
+
