@@ -170,3 +170,52 @@ void loop() {
   }
 }
 
+// =================== INÍCIO E FIM DO JOGO ===================
+void iniciarJogo() {
+  jogoAtivo = true;
+  movimentoDetectado = false;
+  pontos = 0;
+  tempoLimite = random(7000, 12000); // Tempo aleatório entre 7 e 12 segundos
+  inicioTempo = millis();
+
+  mensagem("Missao iniciada!\nMovimente-se...");
+  acenderLED(LED_BLUE);
+  enviarDadosMQTT(pontos, 0, "iniciado");
+}
+
+void encerrarJogo() {
+  jogoAtivo = false;
+
+  // Desliga LEDs
+  digitalWrite(LED_RED, LOW);
+  digitalWrite(LED_GREEN, LOW);
+  digitalWrite(LED_BLUE, LOW);
+
+  String status;
+
+  // Caso nenhum movimento tenha sido detectado
+  if (!movimentoDetectado) {
+    pontos = 0;
+  }
+
+  // Avalia desempenho e mostra feedback
+  if (pontos < 5) {
+    acenderLED(LED_RED);
+    mensagem("Pontuacao baixa!\nTente novamente.");
+    status = "baixo";
+  } else if (pontos < 11) {
+    acenderLED(LED_BLUE);
+    mostrarConhecimento(2);
+    status = "medio";
+  } else {
+    acenderLED(LED_GREEN);
+    mostrarConhecimento(3);
+    status = "alto";
+  }
+
+  // Envia dados finais via MQTT
+  enviarDadosMQTT(pontos, tempoReacao, status);
+
+  delay(4000);
+  mensagem("Pressione o botao\npara reiniciar!");
+}
