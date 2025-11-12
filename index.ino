@@ -112,3 +112,61 @@ void mostrarConhecimento(int nivel) {
   display.display();
 }
 
+// =================== LÓGICA PRINCIPAL ===================
+void setup() {
+  Serial.begin(115200);
+
+  // Configuração dos pinos
+  pinMode(LED_RED, OUTPUT);
+  pinMode(LED_GREEN, OUTPUT);
+  pinMode(LED_BLUE, OUTPUT);
+  pinMode(PIR_PIN, INPUT);
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
+
+  // Inicializa o display OLED (pinos SDA = 5, SCL = 4)
+  Wire.begin(5, 4);
+  display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
+  display.clearDisplay();
+
+  // Conecta Wi-Fi e configura MQTT
+  conectarWiFi();
+  MQTT.setServer(BROKER_MQTT, BROKER_PORT);
+
+  mensagem("Pressione o botao\npara iniciar!");
+}
+
+void loop() {
+  // Mantém conexão MQTT ativa
+  if (!MQTT.connected()) reconnectMQTT();
+  MQTT.loop();
+
+  // Inicia o jogo se o botão for pressionado
+  if (!jogoAtivo && digitalRead(BUTTON_PIN) == LOW) {
+    iniciarJogo();
+  }
+
+  // Enquanto o jogo estiver ativo
+  if (jogoAtivo) {
+    int ldrValor = analogRead(LDR_PIN);  // Lê luminosidade do ambiente
+
+    // Se o sensor PIR detectar movimento
+    if (digitalRead(PIR_PIN) == HIGH && !movimentoDetectado) {
+      movimentoDetectado = true;
+      tempoReacao = millis() - inicioTempo; // Calcula tempo de reação
+
+      // Pontuação baseada no tempo de reação
+      if (tempoReacao < 3000) pontos += 10;
+      else if (tempoReacao < 6000) pontos += 7;
+      else pontos += 4;
+
+      // Bônus caso o ambiente esteja bem iluminado
+      if (ldrValor > 2000) pontos += 5;
+    }
+
+    // Verifica se o tempo da rodada acabou
+    if (millis() - inicioTempo > tempoLimite) {
+      encerrarJogo();
+    }
+  }
+}
+
