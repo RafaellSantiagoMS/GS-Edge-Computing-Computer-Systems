@@ -116,7 +116,7 @@ O **FIWARE** (opcional) pode ser utilizado para armazenar os dados históricos e
 
 ## 🔗 Simulação ESP32 (Wokwi)
 
-[Link do Projeto Wokwi](https:https://wokwi.com/projects/447347122209616897)
+[Link do Projeto Wokwi](https://wokwi.com/projects/447347122209616897)
 
 ## 📸 Prints
 
@@ -131,7 +131,7 @@ O **FIWARE** (opcional) pode ser utilizado para armazenar os dados históricos e
 
 ## 📽️ Vídeo Explicativo (para avaliação)
 
-[Link do Vídeo](https:https://wokwi.com/projects/447347122209616897)
+[Link do Vídeo](https://youtu.be/LDEHrYvmR9Q)
 
 ---
 
