@@ -1,25 +1,33 @@
-// =================== BIBLIOTECAS ===================
-#include <WiFi.h>              // Conexão Wi-Fi
-#include <PubSubClient.h>      // Comunicação MQTT
-#include <Wire.h>              // Comunicação I2C
-#include <Adafruit_GFX.h>      // Biblioteca gráfica
-#include <Adafruit_SSD1306.h>  // Controle do display OLED
+// ======================================================
+// BIBLIOTECAS NECESSÁRIAS
+// ======================================================
+#include <WiFi.h>
+#include <PubSubClient.h>
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
 
-// =================== CONFIGURAÇÕES WI-FI E MQTT ===================
-const char* SSID = "Wokwi-GUEST";           // Nome da rede Wi-Fi
-const char* PASSWORD = "";                  // Senha da rede (vazia no Wokwi)
-const char* BROKER_MQTT = "18.228.235.47";  // IP da instância AWS (broker MQTT)
-const int BROKER_PORT = 1883;               // Porta padrão MQTT
-const char* TOPICO_PUBLISH = "/GS/jogo/attrs"; // Tópico para enviar dados
-const char* ID_MQTT = "gs_gamificacao_01";  // Identificação única do cliente MQTT
+// ======================================================
+// CONFIGURAÇÕES DE REDE WI-FI E MQTT
+// ======================================================
+const char* SSID = "Wokwi-GUEST";
+const char* PASSWORD = "";
+const char* BROKER_MQTT = "18.228.235.47";
+const int BROKER_PORT = 1883;
+const char* TOPICO_PUBLISH = "/GS/jogo/attrs";
+const char* ID_MQTT = "gs_gamificacao_01";
 
-// =================== DISPLAY OLED ===================
+// ======================================================
+// CONFIGURAÇÃO DO DISPLAY OLED SSD1306
+// ======================================================
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64
 #define OLED_RESET -1
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
-// =================== PINOS ===================
+// ======================================================
+// DEFINIÇÃO DE PINOS
+// ======================================================
 #define LED_RED 23
 #define LED_GREEN 22
 #define LED_BLUE 21
@@ -27,21 +35,47 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 #define BUTTON_PIN 12
 #define LDR_PIN 34
 
-// =================== VARIÁVEIS DO JOGO ===================
-int pontos = 0;                   // Armazena a pontuação do jogador
-bool jogoAtivo = false;           // Indica se o jogo está em andamento
-unsigned long inicioTempo;        // Marca o início da rodada
-unsigned long tempoLimite;        // Define tempo máximo de cada rodada
-unsigned long tempoReacao = 0;    // Armazena o tempo de reação do jogador
-bool movimentoDetectado = false;  // Flag de movimento detectado
+// ======================================================
+// VARIÁVEIS GLOBAIS DO JOGO
+// ======================================================
+int pontosRodada = 0;
+bool jogoAtivo = false;
+unsigned long inicioTempo = 0;
+unsigned long tempoLimite = 0;
+unsigned long tempoReacao = 0;
+bool movimentoDetectado = false;
+int ldrBase = 0;
 
-// =================== OBJETOS DE REDE ===================
-WiFiClient espClient;             // Cliente Wi-Fi
-PubSubClient MQTT(espClient);     // Cliente MQTT
+// ======================================================
+// CONTROLE DO BOTÃO (DEBOUNCE)
+// ======================================================
+unsigned long ultimoBotao = 0;
+const unsigned long DEBOUNCE_DELAY = 500;
 
-// =================== FUNÇÕES AUXILIARES ===================
+// ======================================================
+// CONFIGURAÇÃO DE PONTUAÇÃO
+// ======================================================
+const int PONTOS_RAPIDO = 12;   // Resposta abaixo de 2 segundos
+const int PONTOS_MEDIO = 8;     // Resposta abaixo de 4 segundos
+const int PONTOS_LENTO = 4;     // Resposta acima de 4 segundos
+const int BONUS_LUZ = 10;       // Bônus se a luminosidade aumentar
+const int LIMITE_LUZ = 200;     // Diferença mínima de luz para ativar o bônus
 
-// Conecta ao Wi-Fi
+// ======================================================
+// LIMITES DE CLASSIFICAÇÃO
+// ======================================================
+const int LIMITE_BAIXO = 10;
+const int LIMITE_MEDIO = 18;
+
+// ======================================================
+// OBJETOS DE REDE
+// ======================================================
+WiFiClient espClient;
+PubSubClient MQTT(espClient);
+
+// ======================================================
+// FUNÇÃO: CONECTAR AO WI-FI
+// ======================================================
 void conectarWiFi() {
   Serial.println("Conectando ao Wi-Fi...");
   WiFi.begin(SSID, PASSWORD);
@@ -50,172 +84,280 @@ void conectarWiFi() {
     Serial.print(".");
   }
   Serial.println("\nWi-Fi conectado!");
-  Serial.print("IP: ");
+  Serial.print("IP atribuído: ");
   Serial.println(WiFi.localIP());
 }
 
-// Garante conexão com o broker MQTT
+// ======================================================
+// FUNÇÃO: CONECTAR AO BROKER MQTT
+// ======================================================
 void reconnectMQTT() {
   while (!MQTT.connected()) {
-    Serial.print("* Tentando conectar ao Broker MQTT: ");
+    Serial.print("Tentando conectar ao Broker MQTT: ");
     Serial.println(BROKER_MQTT);
     if (MQTT.connect(ID_MQTT)) {
-      Serial.println("Conectado ao broker MQTT!");
+      Serial.println("Conectado com sucesso ao broker!");
       MQTT.publish(TOPICO_PUBLISH, "status:on");
     } else {
-      Serial.println("Falha ao conectar. Nova tentativa em 2s...");
+      Serial.println("Falha ao conectar. Tentando novamente em 2 segundos...");
       delay(2000);
     }
   }
 }
 
-// Envia dados em formato JSON para o broker MQTT
+// ======================================================
+// FUNÇÃO: ENVIAR DADOS AO BROKER MQTT
+// ======================================================
 void enviarDadosMQTT(int pontos, unsigned long tempoReacao, String status) {
   String payload = "{";
   payload += "\"pontuacao\": " + String(pontos) + ",";
   payload += "\"tempo_reacao\": " + String(tempoReacao) + ",";
   payload += "\"status\": \"" + status + "\"";
   payload += "}";
-
   MQTT.publish(TOPICO_PUBLISH, payload.c_str());
   Serial.println("Enviado MQTT: " + payload);
 }
 
-// Exibe mensagem simples no display
+// ======================================================
+// FUNÇÃO: EXIBIR MENSAGEM NO DISPLAY OLED
+// ======================================================
 void mensagem(String texto) {
   display.clearDisplay();
-  display.setCursor(0, 10);
   display.setTextSize(1);
   display.setTextColor(SSD1306_WHITE);
-  display.print(texto);
+  display.setCursor(0, 10);
+  display.println(texto);
   display.display();
 }
 
-// Acende um LED específico (vermelho, verde ou azul)
+// ======================================================
+// FUNÇÃO: CONTROLE DE LEDS
+// ======================================================
 void acenderLED(int cor) {
-  digitalWrite(LED_RED, cor == LED_RED);
-  digitalWrite(LED_GREEN, cor == LED_GREEN);
-  digitalWrite(LED_BLUE, cor == LED_BLUE);
+  digitalWrite(LED_RED, LOW);
+  digitalWrite(LED_GREEN, LOW);
+  digitalWrite(LED_BLUE, LOW);
+
+  if (cor == LED_RED || cor == LED_BLUE || cor == LED_GREEN) {
+    digitalWrite(cor, HIGH);
+  }
 }
 
-// Mostra mensagem de incentivo conforme desempenho
+// ======================================================
+// FUNÇÃO: MOSTRAR MENSAGEM DE NÍVEL
+// ======================================================
 void mostrarConhecimento(int nivel) {
   display.clearDisplay();
-  display.setCursor(0, 10);
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(0, 5);
+
   if (nivel == 1) {
-    display.print("Curioso! Parte 1:\nAprender IA\ncomeca na base.");
-  } else if (nivel == 2) {
-    display.print("Bom! Parte 2:\nA pratica leva\nao dominio.");
-  } else {
-    display.print("Excelente!\nIA transforma\nideias em solucoes!");
+    display.println("Nivel 1 - Conectado");
+    display.println("");
+    display.println("Use tecnologia com");
+    display.println("curiosidade e cuidado.");
+    display.println("Aprender e o 1o passo!");
+  } 
+  else if (nivel == 2) {
+    display.println("Nivel 2 - Criativo");
+    display.println("");
+    display.println("A IA e sua aliada!");
+    display.println("Use-a para explorar");
+    display.println("ideias e criar solucoes.");
+  } 
+  else {
+    display.println("Nivel 3 - Consciente");
+    display.println("");
+    display.println("Voce domina a IA!");
+    display.println("Use-a com etica e");
+    display.println("responsabilidade.");
   }
+
   display.display();
 }
 
-// =================== LÓGICA PRINCIPAL ===================
+// ======================================================
+// FUNÇÃO: INICIAR UMA NOVA RODADA
+// ======================================================
+void iniciarJogo() {
+  jogoAtivo = true;
+  movimentoDetectado = false;
+  pontosRodada = 0;
+  tempoReacao = 0;
+  tempoLimite = random(5000, 8000);
+  inicioTempo = millis();
+
+  // Mede a luz ambiente inicial (base)
+  ldrBase = 0;
+  for (int i = 0; i < 10; i++) {
+    ldrBase += analogRead(LDR_PIN);
+    delay(50);
+  }
+  ldrBase = ldrBase / 10;
+
+  Serial.println("=== NOVA RODADA INICIADA ===");
+  Serial.print("Tempo limite: "); Serial.println(tempoLimite);
+  Serial.print("LDR base (media): "); Serial.println(ldrBase);
+
+  mensagem("Rodada iniciada!\nMovimente-se rapido!\nUse uma lanterna!");
+  acenderLED(LED_BLUE); 
+  enviarDadosMQTT(pontosRodada, 0, "iniciado");
+}
+
+// ======================================================
+// FUNÇÃO: ENCERRAR A RODADA (CORRIGIDA)
+// ======================================================
+void encerrarJogo() {
+  jogoAtivo = false;
+  acenderLED(-1);
+  String status;
+
+  if (!movimentoDetectado) {
+    pontosRodada = 0;
+    tempoReacao = 0;
+    Serial.println("Nenhum movimento detectado - 0 pontos");
+  }
+
+  Serial.println("===== FIM DA RODADA =====");
+  Serial.print("Pontuacao: "); Serial.println(pontosRodada);
+  Serial.print("Tempo de reacao (ms): "); Serial.println(tempoReacao);
+
+  // Classificação corrigida
+  if (pontosRodada < LIMITE_BAIXO) {
+    status = "baixo";
+    mensagem("Pontuacao: " + String(pontosRodada) + "\nStatus: Baixo");
+    mostrarConhecimento(1);
+    acenderLED(LED_RED);
+  } 
+  else if (pontosRodada < LIMITE_MEDIO) {
+    status = "medio";
+    mensagem("Pontuacao: " + String(pontosRodada) + "\nStatus: Medio");
+    mostrarConhecimento(2);
+    acenderLED(LED_BLUE);
+  } 
+  else {
+    status = "alto";
+    mensagem("Pontuacao: " + String(pontosRodada) + "\nStatus: Alto");
+    mostrarConhecimento(3);
+    acenderLED(LED_GREEN);
+  }
+
+  Serial.print("STATUS FINAL: "); Serial.println(status);
+  Serial.println("===========================");
+
+  enviarDadosMQTT(pontosRodada, tempoReacao, status);
+
+  delay(5000);
+  mensagem("Pressione o botao\npara nova rodada!");
+}
+
+// ======================================================
+// CONFIGURAÇÃO INICIAL (SETUP)
+// ======================================================
 void setup() {
   Serial.begin(115200);
 
-  // Configuração dos pinos
   pinMode(LED_RED, OUTPUT);
   pinMode(LED_GREEN, OUTPUT);
   pinMode(LED_BLUE, OUTPUT);
   pinMode(PIR_PIN, INPUT);
   pinMode(BUTTON_PIN, INPUT_PULLUP);
 
-  // Inicializa o display OLED (pinos SDA = 5, SCL = 4)
+  // Inicialização do display OLED
   Wire.begin(5, 4);
-  display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
+  if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+    Serial.println("Erro ao inicializar o display OLED!");
+    for (;;);
+  }
   display.clearDisplay();
+  display.display();
 
-  // Conecta Wi-Fi e configura MQTT
+  // Animação de inicialização dos LEDs
+  acenderLED(LED_RED); delay(400);
+  acenderLED(LED_BLUE); delay(400);
+  acenderLED(LED_GREEN); delay(400);
+  acenderLED(-1);
+
+  // Conexão Wi-Fi e MQTT
   conectarWiFi();
   MQTT.setServer(BROKER_MQTT, BROKER_PORT);
 
-  mensagem("Pressione o botao\npara iniciar!");
+  mensagem("Pressione o botao\npara iniciar o jogo!");
+  Serial.println("Sistema pronto - aguardando inicio do jogo");
 }
 
+// ======================================================
+// LOOP PRINCIPAL
+// ======================================================
 void loop() {
-  // Mantém conexão MQTT ativa
   if (!MQTT.connected()) reconnectMQTT();
   MQTT.loop();
 
-  // Inicia o jogo se o botão for pressionado
-  if (!jogoAtivo && digitalRead(BUTTON_PIN) == LOW) {
+  // Início de rodada ao pressionar botão
+  if (!jogoAtivo && digitalRead(BUTTON_PIN) == LOW && 
+      (millis() - ultimoBotao) > DEBOUNCE_DELAY) {
+    ultimoBotao = millis();
     iniciarJogo();
   }
 
-  // Enquanto o jogo estiver ativo
+  // Lógica principal do jogo
   if (jogoAtivo) {
-    int ldrValor = analogRead(LDR_PIN);  // Lê luminosidade do ambiente
-
-    // Se o sensor PIR detectar movimento
+    // Verifica movimento
     if (digitalRead(PIR_PIN) == HIGH && !movimentoDetectado) {
       movimentoDetectado = true;
-      tempoReacao = millis() - inicioTempo; // Calcula tempo de reação
+      tempoReacao = millis() - inicioTempo;
 
-      // Pontuação baseada no tempo de reação
-      if (tempoReacao < 3000) pontos += 10;
-      else if (tempoReacao < 6000) pontos += 7;
-      else pontos += 4;
+      // Calcula variação de luz
+      int ldrAtual = 0;
+      for (int i = 0; i < 5; i++) {
+        ldrAtual += analogRead(LDR_PIN);
+        delay(10);
+      }
+      ldrAtual = ldrAtual / 5;
 
-      // Bônus caso o ambiente esteja bem iluminado
-      if (ldrValor > 2000) pontos += 5;
+      int diferencaLuz = ldrAtual - ldrBase;
+
+      // Pontos por tempo de reação
+      int pontosTempo = 0;
+      if (tempoReacao < 2000) {
+        pontosTempo = PONTOS_RAPIDO;
+        Serial.println("Reacao muito rapida! +12 pontos");
+      } else if (tempoReacao < 4000) {
+        pontosTempo = PONTOS_MEDIO;
+        Serial.println("Reacao media! +8 pontos");
+      } else {
+        pontosTempo = PONTOS_LENTO;
+        Serial.println("Reacao lenta! +4 pontos");
+      }
+
+      // Bônus de luz
+      int pontosLuz = 0;
+      if (diferencaLuz > LIMITE_LUZ) {
+        pontosLuz = BONUS_LUZ;
+        Serial.println("Bonus de luz ativado! +10 pontos");
+      } else {
+        Serial.println("Sem bonus de luz - use uma lanterna!");
+      }
+
+      // Soma total
+      pontosRodada = pontosTempo + pontosLuz;
+
+      // Feedback visual
+      if (pontosLuz > 0) {
+        mensagem("Bonus luz: SIM\nPontos: " + String(pontosRodada));
+      } else {
+        mensagem("Bonus luz: NAO\nPontos: " + String(pontosRodada));
+      }
+
+      enviarDadosMQTT(pontosRodada, tempoReacao, "reagiu");
+      delay(100);
     }
 
-    // Verifica se o tempo da rodada acabou
+    // Verifica se o tempo acabou
     if (millis() - inicioTempo > tempoLimite) {
+      Serial.println("Tempo limite atingido.");
       encerrarJogo();
     }
   }
-}
-
-// =================== INÍCIO E FIM DO JOGO ===================
-void iniciarJogo() {
-  jogoAtivo = true;
-  movimentoDetectado = false;
-  pontos = 0;
-  tempoLimite = random(7000, 12000); // Tempo aleatório entre 7 e 12 segundos
-  inicioTempo = millis();
-
-  mensagem("Missao iniciada!\nMovimente-se...");
-  acenderLED(LED_BLUE);
-  enviarDadosMQTT(pontos, 0, "iniciado");
-}
-
-void encerrarJogo() {
-  jogoAtivo = false;
-
-  // Desliga LEDs
-  digitalWrite(LED_RED, LOW);
-  digitalWrite(LED_GREEN, LOW);
-  digitalWrite(LED_BLUE, LOW);
-
-  String status;
-
-  // Caso nenhum movimento tenha sido detectado
-  if (!movimentoDetectado) {
-    pontos = 0;
-  }
-
-  // Avalia desempenho e mostra feedback
-  if (pontos < 5) {
-    acenderLED(LED_RED);
-    mensagem("Pontuacao baixa!\nTente novamente.");
-    status = "baixo";
-  } else if (pontos < 11) {
-    acenderLED(LED_BLUE);
-    mostrarConhecimento(2);
-    status = "medio";
-  } else {
-    acenderLED(LED_GREEN);
-    mostrarConhecimento(3);
-    status = "alto";
-  }
-
-  // Envia dados finais via MQTT
-  enviarDadosMQTT(pontos, tempoReacao, status);
-
-  delay(4000);
-  mensagem("Pressione o botao\npara reiniciar!");
 }
